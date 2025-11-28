@@ -74,7 +74,7 @@ class BorrowerManager:
         Returns:
             tuple: (success: bool, message: str, card_id: str or None)
         """
-        
+
         # Validate required fields
         is_valid, error_msg = BorrowerManager.validate_inputs(name, ssn, address)
         if not is_valid:
@@ -115,7 +115,7 @@ class BorrowerManager:
     
     @staticmethod
     def get_borrower(card_id):
-        """Retrieve borrower information by card ID."""
+        # Retrieve borrower information by card ID
         conn = get_connection()
         if not conn:
             return None
@@ -134,7 +134,7 @@ class BorrowerManager:
     
     @staticmethod
     def search_borrowers(search_term):
-        """Search borrowers by name or SSN."""
+        # Search borrowers by name or SSN
         conn = get_connection()
         if not conn:
             return []
