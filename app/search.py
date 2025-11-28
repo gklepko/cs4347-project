@@ -1,5 +1,5 @@
 import sys
-from app.database import get_connection, close_connection
+from database import get_connection, close_connection
 from typing import List, Dict
 
 def search_books(query_str: str) -> List[Dict]:
