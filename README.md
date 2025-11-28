@@ -1,6 +1,6 @@
 # Library Management System
 
-CS/SE 3347.008 Database Systems Project
+CS/SE 3347.008 Database Systems Programming Project
 
 ---
 
