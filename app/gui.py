@@ -1,9 +1,11 @@
 import sys
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QPushButton, QLineEdit, QTextEdit
+    QLabel, QPushButton, QLineEdit, QTableWidget, QTableWidgetItem,
+    QAbstractItemView, QStackedWidget
 )
 from PyQt6.QtCore import Qt
+from book_search import BookSearchManager
 
 class LibraryApp(QMainWindow):
     def __init__(self):
@@ -30,7 +32,7 @@ class LibraryApp(QMainWindow):
         search_layout = QHBoxLayout()
         search_label = QLabel("Search:")
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Enter book title or author...")
+        self.search_input.setPlaceholderText("Enter book title, author, or ISBN...")
         search_button = QPushButton("Search")
         search_button.clicked.connect(self.on_search)
         search_layout.addWidget(search_label)
@@ -39,19 +41,20 @@ class LibraryApp(QMainWindow):
         main_layout.addLayout(search_layout)
 
         # Results display
-        results_label = QLabel("Results:")
-        main_layout.addWidget(results_label)
-        self.results_display = QTextEdit()
-        self.results_display.setReadOnly(True)
-        main_layout.addWidget(self.results_display)
+        self.results_label = QLabel("Results:")
+        main_layout.addWidget(self.results_label)
+        self.results_table = QTableWidget()
+        self.results_table.setColumnCount(4)
+        self.results_table.setHorizontalHeaderLabels(["Title", "ISBN", "Authors", "Status"])
+        self.results_table.resizeColumnsToContents()
+        self.results_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.results_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        main_layout.addWidget(self.results_table)
 
         # Button section
         button_layout = QHBoxLayout()
-        add_button = QPushButton("Add Book")
-        add_button.clicked.connect(self.on_add_book)
-        borrow_button = QPushButton("Borrow Book")
+        borrow_button = QPushButton("Checkout Book")
         borrow_button.clicked.connect(self.on_borrow_book)
-        button_layout.addWidget(add_button)
         button_layout.addWidget(borrow_button)
         main_layout.addLayout(button_layout)
 
@@ -59,13 +62,33 @@ class LibraryApp(QMainWindow):
 
     def on_search(self):
         query = self.search_input.text()
-        self.results_display.setText(f"Searching for: {query}")
-
-    def on_add_book(self):
-        self.results_display.setText("Add Book dialog would open here")
+        if not query.strip():
+            self.results_table.setRowCount(0)
+            self.results_label.setText("Results:")
+            return
+        
+        results = BookSearchManager.search(query)
+        self.results_table.setRowCount(len(results))
+        
+        result_count = len(results)
+        self.results_label.setText(f"Found {result_count} result{'s' if result_count != 1 else ''}:")
+        
+        for row, book in enumerate(results):
+            self.results_table.setItem(row, 0, QTableWidgetItem(book['Title']))
+            self.results_table.setItem(row, 1, QTableWidgetItem(book['Isbn']))
+            self.results_table.setItem(row, 2, QTableWidgetItem(book['Authors'] or 'Unknown'))
+            self.results_table.setItem(row, 3, QTableWidgetItem(book['Status']))
+        
+        self.results_table.resizeColumnsToContents()
 
     def on_borrow_book(self):
-        self.results_display.setText("Borrow Book dialog would open here")
+        selected_row = self.results_table.currentRow()
+        if selected_row >= 0:
+            isbn = self.results_table.item(selected_row, 1).text()
+            # TODO: Implement checkout logic with selected ISBN
+        else:
+            # TODO: Show message to select a book first
+            pass
 
 
 def main():
