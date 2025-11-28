@@ -8,10 +8,10 @@ load_dotenv()  # Load environment variables from .env file
 def insert_into_table(csv_path, table_name):
     # --- configure this for your environment ---
     conn = mysql.connector.connect(
-        host=os.environ.get("MYSQL_HOST"),
-        user=os.environ.get("MYSQL_USER"),
-        password=os.environ.get("MYSQL_PASS"),
-        database=os.environ.get("MYSQL_DB"),
+        host=os.environ.get("MYSQL_HOST", "localhost"),
+        user=os.environ.get("MYSQL_USER", "root"),
+        password=os.environ.get("MYSQL_PASS", "your_password"),
+        database=os.environ.get("MYSQL_DB", "LIBMS"),
     )
     cursor = conn.cursor()
 
@@ -26,7 +26,10 @@ def insert_into_table(csv_path, table_name):
             # Build: INSERT INTO table_name (`col1`,`col2`,...) VALUES (%s, %s, ...)
             col_list = ", ".join(f"`{col}`" for col in columns)
             placeholders = ", ".join(["%s"] * len(columns))
-            sql = f"INSERT INTO `{table_name}` ({col_list}) VALUES ({placeholders})"
+
+            # Use INSERT IGNORE so MySQL skips rows that violate constraints 
+            # (e.g., duplicate primary/unique keys) instead of throwing an error.
+            sql = f"INSERT IGNORE INTO {table_name} ({col_list}) VALUES ({placeholders})"
 
             # Insert each row
             for row in reader:
