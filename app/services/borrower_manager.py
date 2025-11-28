@@ -1,6 +1,10 @@
 import re
 from mysql.connector import Error
-from database import get_connection, close_connection
+import sys
+import os
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from db.database import get_connection, close_connection
 
 class BorrowerManager:
 

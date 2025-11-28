@@ -1,6 +1,9 @@
 import sys
-from database import get_connection, close_connection
+import os
 from typing import List, Dict
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from db.database import get_connection, close_connection
 
 def search_books(query_str: str) -> List[Dict]:
     """

@@ -5,7 +5,9 @@ from PyQt6.QtWidgets import (
     QAbstractItemView, QStackedWidget
 )
 from PyQt6.QtCore import Qt
-from book_search import BookSearchManager
+
+sys.path.insert(0, '..')
+from services.book_search import BookSearchManager
 
 class LibraryApp(QMainWindow):
     def __init__(self):
