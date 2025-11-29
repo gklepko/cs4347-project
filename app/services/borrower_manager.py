@@ -62,16 +62,16 @@ class BorrowerManager:
             return False
     
     @staticmethod
-    def create_borrower(name, ssn, address, fname=None, lname=None, email=None, phone=None):
+    def create_borrower(name, ssn, address, fname, lname, email=None, phone=None):
         """
         Create a new borrower in the system.
         
         Args:
-            name: Full name (required)
+            name: Full name (taken from fname + lname)
             ssn: Social Security Number in format XXX-XX-XXXX (required)
             address: Address (required)
-            fname: First name (optional)
-            lname: Last name (optional)
+            fname: First name (required)
+            lname: Last name (required)
             email: Email address (optional)
             phone: Phone number (optional)
         
@@ -82,21 +82,30 @@ class BorrowerManager:
         # Validate required fields
         is_valid, error_msg = BorrowerManager.validate_inputs(name, ssn, address)
         if not is_valid:
+            print(f"[BORROWER] Validation failed: {error_msg}")
             return False, error_msg, None
+        
+        # Remove dashes from SSN for storage
+        ssn_clean = ssn.replace('-', '')
         
         conn = get_connection()
         if not conn:
+            print("[BORROWER] Failed to get database connection")
             return False, "Failed to connect to database", None
         
         try:
             # Check if SSN already exists
-            if BorrowerManager.ssn_exists(conn, ssn):
+            if BorrowerManager.ssn_exists(conn, ssn_clean):
+                print(f"[BORROWER] SSN {ssn} already exists")
                 return False, f"A borrower with SSN {ssn} already exists in the system", None
             
             # Generate new card_id
             card_id = BorrowerManager.generate_card_id(conn)
             if not card_id:
+                print("[BORROWER] Failed to generate card ID")
                 return False, "Failed to generate card ID", None
+            
+            print(f"[BORROWER] Creating borrower: {name} (SSN: {ssn_clean}, Card ID: {card_id})")
             
             # Insert new borrower
             cursor = conn.cursor()
@@ -105,13 +114,15 @@ class BorrowerManager:
                 (Card_id, Ssn, Bname, Fname, Lname, Email, Address, PhoneNumber)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """
-            cursor.execute(query, (card_id, ssn, name, fname, lname, email, phone))
+            cursor.execute(query, (card_id, ssn_clean, name, fname, lname, email, address, phone))
             conn.commit()
             cursor.close()
             
+            print(f"[BORROWER] Successfully created borrower with Card ID: {card_id}")
             return True, f"Borrower created successfully with Card ID: {card_id}", card_id
         
         except Error as e:
+            print(f"[BORROWER] Database error: {str(e)}")
             conn.rollback()
             return False, f"Database error: {str(e)}", None
         finally:
@@ -146,7 +157,7 @@ class BorrowerManager:
         try:
             cursor = conn.cursor(dictionary=True)
             query = """
-                SELECT * FROM BORROWER 
+                SELECT * FROM BORROWER
                 WHERE Bname LIKE %s OR Ssn LIKE %s OR Card_id LIKE %s
                 ORDER BY Bname
             """
