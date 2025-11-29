@@ -3,7 +3,9 @@ import mysql.connector
 from mysql.connector import Error
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load .env from the root directory
+env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), '.env')
+load_dotenv(env_path)
 
 def get_connection():
     # returns a raw MySQL connection
