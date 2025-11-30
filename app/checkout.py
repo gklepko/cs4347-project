@@ -1,10 +1,9 @@
+#This code will attempt to checkout a book to a borrower
 from app.database import get_connection, close_connection
 from datetime import date, timedelta
 
 def checkout_book(isbn: str, card_id: str) -> str:
-    """
-    Attempts to checkout a book to a borrower.
-    """
+   
 
     conn = get_connection()
     if not conn:
@@ -13,13 +12,13 @@ def checkout_book(isbn: str, card_id: str) -> str:
     cursor = conn.cursor(dictionary=True)
 
     try:
-        # 1) Verify borrower exists
+        
         cursor.execute("SELECT * FROM BORROWER WHERE Card_id = %s", (card_id,))
         borrower = cursor.fetchone()
         if not borrower:
             return f" Borrower {card_id} does not exist."
 
-        # 2) Check active loans < 3
+        
         cursor.execute("""
             SELECT COUNT(*) AS loan_count 
             FROM LOAN 
@@ -29,7 +28,7 @@ def checkout_book(isbn: str, card_id: str) -> str:
         if loan_count >= 3:
             return " Borrower already has maximum 3 active loans."
 
-        # 3) Check if book already checked out
+        
         cursor.execute("""
             SELECT * FROM LOAN
             WHERE Isbn = %s AND Date_in IS NULL
@@ -37,7 +36,7 @@ def checkout_book(isbn: str, card_id: str) -> str:
         if cursor.fetchone():
             return " Book is currently checked out."
 
-        # 4) Check unpaid fines
+        
         cursor.execute("""
             SELECT SUM(Fine_amt) AS total
             FROM FINE JOIN LOAN USING(Loan_id)
@@ -47,7 +46,7 @@ def checkout_book(isbn: str, card_id: str) -> str:
         if unpaid and unpaid > 0:
             return f" Borrower has unpaid fines: ${unpaid:.2f}"
 
-        # 5) Create loan record
+        
         cursor.execute("SELECT IFNULL(MAX(Loan_id),0)+1 AS next_id FROM LOAN")
         next_id = cursor.fetchone()["next_id"]
 
