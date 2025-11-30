@@ -3,13 +3,269 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QLineEdit, QTableWidget, QTableWidgetItem,
     QAbstractItemView, QStackedWidget, QDialog, QScrollArea, QSplitter,
-    QMessageBox
+    QMessageBox, QCheckBox, QGroupBox
 )
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QAction
+from decimal import Decimal
 
 sys.path.insert(0, '..')
 from services.book_search import BookSearchManager
 from services.borrower_manager import BorrowerManager
+from services.fine import FinesManager
+
+
+class FinesDialog(QDialog):
+    # Dialog for viewing and managing fines for a specific borrower.
+    
+    def __init__(self, card_id, borrower_name, parent=None):
+        super().__init__(parent)
+        self.card_id = card_id
+        self.borrower_name = borrower_name
+        self.init_ui()
+        self.load_fines()
+    
+    def init_ui(self):
+        self.setWindowTitle(f"Fines - {self.borrower_name}")
+        self.setGeometry(200, 200, 900, 500)
+        
+        layout = QVBoxLayout()
+        
+        # Header
+        header = QLabel(f"<h2>Fines for {self.borrower_name}</h2>")
+        layout.addWidget(header)
+        
+        # Card ID
+        card_label = QLabel(f"Card ID: {self.card_id}")
+        layout.addWidget(card_label)
+        
+        # Show paid fines checkbox
+        self.show_paid_checkbox = QCheckBox("Show paid fines")
+        self.show_paid_checkbox.stateChanged.connect(self.load_fines)
+        layout.addWidget(self.show_paid_checkbox)
+        
+        # Fines table
+        self.fines_table = QTableWidget()
+        self.fines_table.setColumnCount(7)
+        self.fines_table.setHorizontalHeaderLabels([
+            "Loan ID", "Book Title", "ISBN", "Due Date", "Return Date", "Fine Amount", "Status"
+        ])
+        self.fines_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.fines_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.fines_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        layout.addWidget(self.fines_table)
+        
+        # Summary section
+        summary_group = QGroupBox("Summary")
+        summary_layout = QVBoxLayout()
+        
+        self.total_label = QLabel("Total Fines: $0.00")
+        self.unpaid_label = QLabel("Unpaid Fines: $0.00")
+        
+        self.total_label.setStyleSheet("font-size: 14px;")
+        self.unpaid_label.setStyleSheet("font-size: 14px; font-weight: bold; color: red;")
+        
+        summary_layout.addWidget(self.total_label)
+        summary_layout.addWidget(self.unpaid_label)
+        summary_group.setLayout(summary_layout)
+        layout.addWidget(summary_group)
+        
+        # Buttons
+        button_layout = QHBoxLayout()
+        
+        self.pay_button = QPushButton("Pay All Fines")
+        self.pay_button.clicked.connect(self.pay_fines)
+        self.pay_button.setStyleSheet("background-color: #4CAF50; color: white; padding: 8px;")
+        
+        refresh_button = QPushButton("Refresh")
+        refresh_button.clicked.connect(self.load_fines)
+        
+        close_button = QPushButton("Close")
+        close_button.clicked.connect(self.accept)
+        
+        button_layout.addWidget(self.pay_button)
+        button_layout.addWidget(refresh_button)
+        button_layout.addStretch()
+        button_layout.addWidget(close_button)
+        
+        layout.addLayout(button_layout)
+        self.setLayout(layout)
+    
+    def load_fines(self):
+        # Load and display fines for the borrower
+        include_paid = self.show_paid_checkbox.isChecked()
+        fines_info = FinesManager.get_borrower_fines(self.card_id, include_paid)
+        
+        if not fines_info:
+            QMessageBox.warning(self, "Error", "Failed to load fines")
+            return
+        
+        # Update summary
+        self.total_label.setText(f"Total Fines: ${fines_info['total_fines']:.2f}")
+        self.unpaid_label.setText(f"Unpaid Fines: ${fines_info['unpaid_fines']:.2f}")
+        
+        # Enable/disable pay button
+        self.pay_button.setEnabled(fines_info['unpaid_fines'] > 0)
+        
+        # Update table
+        fines = fines_info['fines']
+        self.fines_table.setRowCount(len(fines))
+        
+        for row, fine in enumerate(fines):
+            self.fines_table.setItem(row, 0, QTableWidgetItem(str(fine['Loan_id'])))
+            self.fines_table.setItem(row, 1, QTableWidgetItem(fine['Title']))
+            self.fines_table.setItem(row, 2, QTableWidgetItem(fine['Isbn']))
+            self.fines_table.setItem(row, 3, QTableWidgetItem(str(fine['Date_due'])))
+            
+            return_date = str(fine['Date_in']) if fine['Date_in'] else "Not returned"
+            self.fines_table.setItem(row, 4, QTableWidgetItem(return_date))
+            
+            fine_amt = Decimal(str(fine['Fine_amt']))
+            self.fines_table.setItem(row, 5, QTableWidgetItem(f"${fine_amt:.2f}"))
+            
+            status = "PAID" if fine['Paid'] else "UNPAID"
+            status_item = QTableWidgetItem(status)
+            if fine['Paid']:
+                status_item.setForeground(Qt.GlobalColor.darkGreen)
+            else:
+                status_item.setForeground(Qt.GlobalColor.red)
+            self.fines_table.setItem(row, 6, status_item)
+        
+        self.fines_table.resizeColumnsToContents()
+    
+    def pay_fines(self):
+        # Process payment for all unpaid fines.
+        unpaid_text = self.unpaid_label.text().split('$')[1]
+        
+        # Confirm payment
+        reply = QMessageBox.question(
+            self,
+            "Confirm Payment",
+            f"Pay all unpaid fines for {self.borrower_name}?\n\nAmount: ${unpaid_text}",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.No:
+            return
+        
+        # Process payment
+        success, message, amount = FinesManager.pay_fines(self.card_id)
+        
+        if success:
+            QMessageBox.information(
+                self,
+                "Payment Successful",
+                f"{message}\n\nReceipt:\nBorrower: {self.borrower_name}\nCard ID: {self.card_id}\nAmount Paid: ${amount:.2f}"
+            )
+            self.load_fines()  # Refresh the display
+        else:
+            QMessageBox.critical(self, "Payment Failed", message)
+
+
+class AllFinesDialog(QDialog):
+    # Dialog for viewing all unpaid fines in the system
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.init_ui()
+        self.load_all_fines()
+    
+    def init_ui(self):
+        self.setWindowTitle("All Unpaid Fines")
+        self.setGeometry(200, 200, 800, 600)
+        
+        layout = QVBoxLayout()
+        
+        # Header
+        self.header_label = QLabel("<h2>All Borrowers with Unpaid Fines</h2>")
+        layout.addWidget(self.header_label)
+        
+        # Table
+        self.fines_table = QTableWidget()
+        self.fines_table.setColumnCount(5)
+        self.fines_table.setHorizontalHeaderLabels([
+            "Card ID", "Name", "Email", "Phone", "Total Unpaid"
+        ])
+        self.fines_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.fines_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.fines_table.doubleClicked.connect(self.view_borrower_fines)
+        layout.addWidget(self.fines_table)
+        
+        # Info label
+        info = QLabel("Double-click a borrower to view their detailed fines")
+        info.setStyleSheet("font-style: italic; color: gray;")
+        layout.addWidget(info)
+        
+        # Buttons
+        button_layout = QHBoxLayout()
+        
+        view_button = QPushButton("View Selected Borrower's Fines")
+        view_button.clicked.connect(self.view_selected_borrower_fines)
+        
+        refresh_button = QPushButton("Refresh")
+        refresh_button.clicked.connect(self.load_all_fines)
+        
+        close_button = QPushButton("Close")
+        close_button.clicked.connect(self.accept)
+        
+        button_layout.addWidget(view_button)
+        button_layout.addWidget(refresh_button)
+        button_layout.addStretch()
+        button_layout.addWidget(close_button)
+        
+        layout.addLayout(button_layout)
+        self.setLayout(layout)
+    
+    def load_all_fines(self):
+        # Load and display all unpaid fines.
+        unpaid_fines = FinesManager.get_all_unpaid_fines()
+        
+        self.fines_table.setRowCount(len(unpaid_fines))
+        
+        total_system_fines = Decimal('0.00')
+        
+        for row, borrower in enumerate(unpaid_fines):
+            self.fines_table.setItem(row, 0, QTableWidgetItem(borrower['Card_id']))
+            self.fines_table.setItem(row, 1, QTableWidgetItem(borrower['Bname']))
+            self.fines_table.setItem(row, 2, QTableWidgetItem(borrower['Email'] or ''))
+            self.fines_table.setItem(row, 3, QTableWidgetItem(borrower['PhoneNumber'] or ''))
+            
+            total_unpaid = Decimal(str(borrower['Total_unpaid']))
+            self.fines_table.setItem(row, 4, QTableWidgetItem(f"${total_unpaid:.2f}"))
+            
+            total_system_fines += total_unpaid
+        
+        self.fines_table.resizeColumnsToContents()
+        
+        # Update header with total
+        self.header_label.setText(
+            f"<h2>All Borrowers with Unpaid Fines</h2>"
+            f"<p>Total borrowers: {len(unpaid_fines)} | Total unpaid fines: ${total_system_fines:.2f}</p>"
+        )
+    
+    def view_selected_borrower_fines(self):
+        # View fines for the selected borrower.
+        selected_row = self.fines_table.currentRow()
+        if selected_row < 0:
+            QMessageBox.warning(self, "No Selection", "Please select a borrower first")
+            return
+        
+        self.view_borrower_fines()
+    
+    def view_borrower_fines(self):
+        # View fines for a borrower (triggered by double-click or button).
+        selected_row = self.fines_table.currentRow()
+        if selected_row < 0:
+            return
+        
+        card_id = self.fines_table.item(selected_row, 0).text()
+        borrower_name = self.fines_table.item(selected_row, 1).text()
+        
+        dialog = FinesDialog(card_id, borrower_name, self)
+        dialog.exec()
+        
+        # Refresh the list after closing the detail view
+        self.load_all_fines()
 
 
 class CreateUserDialog(QDialog):
@@ -128,7 +384,7 @@ class UserSelectionDialog(QDialog):
 
     def init_ui(self):
         self.setWindowTitle("Select User")
-        self.setGeometry(200, 200, 500, 400)
+        self.setGeometry(200, 200, 600, 400)
 
         layout = QVBoxLayout()
 
@@ -146,8 +402,8 @@ class UserSelectionDialog(QDialog):
 
         # Results table
         self.results_table = QTableWidget()
-        self.results_table.setColumnCount(3)
-        self.results_table.setHorizontalHeaderLabels(["Name", "Card ID", "Email"])
+        self.results_table.setColumnCount(4)
+        self.results_table.setHorizontalHeaderLabels(["Name", "Card ID", "Email", "Has Fines"])
         self.results_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.results_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         layout.addWidget(self.results_table)
@@ -156,11 +412,17 @@ class UserSelectionDialog(QDialog):
         button_layout = QHBoxLayout()
         create_button = QPushButton("Create New User")
         create_button.clicked.connect(self.on_create_user)
+        
+        view_fines_button = QPushButton("View Fines")
+        view_fines_button.clicked.connect(self.on_view_fines)
+        
         select_button = QPushButton("Select")
         select_button.clicked.connect(self.on_select)
         cancel_button = QPushButton("Cancel")
         cancel_button.clicked.connect(self.reject)
+        
         button_layout.addWidget(create_button)
+        button_layout.addWidget(view_fines_button)
         button_layout.addStretch()
         button_layout.addWidget(select_button)
         button_layout.addWidget(cancel_button)
@@ -181,6 +443,15 @@ class UserSelectionDialog(QDialog):
             self.results_table.setItem(row, 0, QTableWidgetItem(borrower['Bname']))
             self.results_table.setItem(row, 1, QTableWidgetItem(borrower['Card_id']))
             self.results_table.setItem(row, 2, QTableWidgetItem(borrower['Email'] or ''))
+            
+            # Check for unpaid fines
+            has_fines = FinesManager.has_unpaid_fines(borrower['Card_id'])
+            fines_item = QTableWidgetItem("Yes" if has_fines else "No")
+            if has_fines:
+                fines_item.setForeground(Qt.GlobalColor.red)
+            self.results_table.setItem(row, 3, fines_item)
+
+        self.results_table.resizeColumnsToContents()
 
 
     def on_create_user(self):
@@ -188,6 +459,22 @@ class UserSelectionDialog(QDialog):
         if dialog.exec():
             # Refresh the search after creating a new user
             self.on_search()
+
+    def on_view_fines(self):
+        # View fines for the selected borrower.
+        selected_row = self.results_table.currentRow()
+        if selected_row < 0:
+            QMessageBox.warning(self, "No Selection", "Please select a borrower first")
+            return
+        
+        card_id = self.results_table.item(selected_row, 1).text()
+        borrower_name = self.results_table.item(selected_row, 0).text()
+        
+        dialog = FinesDialog(card_id, borrower_name, self)
+        dialog.exec()
+        
+        # Refresh search to update fines status
+        self.on_search()
 
     def on_select(self):
         selected_row = self.results_table.currentRow()
@@ -203,6 +490,9 @@ class LibraryApp(QMainWindow):
     def init_ui(self):
         self.setWindowTitle("Library Management System")
         self.setGeometry(100, 100, 1280, 720)
+
+        # Create menu bar
+        self.create_menu_bar()
 
         # Central widget
         central_widget = QWidget()
@@ -232,6 +522,39 @@ class LibraryApp(QMainWindow):
 
         # Show books page by default
         self.stacked_widget.setCurrentIndex(0)
+
+    def create_menu_bar(self):
+        # Create the application menu bar.
+        menubar = self.menuBar()
+
+        # File menu
+        file_menu = menubar.addMenu("File")
+        
+        exit_action = QAction("Exit", self)
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
+
+        # View menu
+        view_menu = menubar.addMenu("View")
+        
+        books_action = QAction("Books", self)
+        books_action.triggered.connect(lambda: self.stacked_widget.setCurrentIndex(0))
+        view_menu.addAction(books_action)
+        
+        users_action = QAction("Users", self)
+        users_action.triggered.connect(lambda: self.stacked_widget.setCurrentIndex(1))
+        view_menu.addAction(users_action)
+
+        # Fines menu
+        fines_menu = menubar.addMenu("Fines")
+        
+        view_all_fines_action = QAction("View All Unpaid Fines", self)
+        view_all_fines_action.triggered.connect(self.open_all_fines_dialog)
+        fines_menu.addAction(view_all_fines_action)
+        
+        update_fines_action = QAction("Update Fines", self)
+        update_fines_action.triggered.connect(self.update_fines)
+        fines_menu.addAction(update_fines_action)
 
     def create_books_page(self):
         page = QWidget()
@@ -404,6 +727,42 @@ class LibraryApp(QMainWindow):
 
         page.setLayout(layout)
         return page
+
+    def open_all_fines_dialog(self):
+        # Open the dialog showing all unpaid fines.
+        dialog = AllFinesDialog(self)
+        dialog.exec()
+
+    def update_fines(self):
+        # Run the fines update process.
+        reply = QMessageBox.question(
+            self,
+            "Update Fines",
+            "This will calculate and update all fines in the system.\n\nContinue?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.No:
+            return
+        
+        # Show processing message
+        QMessageBox.information(self, "Processing", "Updating fines... Click OK to continue.")
+        
+        # Run update
+        success, message, stats = FinesManager.update_fines()
+        
+        if success:
+            QMessageBox.information(
+                self,
+                "Update Complete",
+                f"{message}\n\n"
+                f"Total loans processed: {stats['total_processed']}\n"
+                f"New fines: {stats['new_fines']}\n"
+                f"Updated fines: {stats['updated_fines']}\n"
+                f"Paid (skipped): {stats['skipped_paid']}"
+            )
+        else:
+            QMessageBox.critical(self, "Update Failed", f"Failed to update fines:\n{message}")
 
 def main():
     app = QApplication(sys.argv)
