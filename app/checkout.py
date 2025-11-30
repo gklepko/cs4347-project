@@ -1,4 +1,4 @@
-from app.database import get_connection, close_connection
+from app.db.database import get_connection, close_connection
 from datetime import date, timedelta
 
 def checkout_book(isbn: str, card_id: str) -> str:
