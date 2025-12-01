@@ -13,11 +13,9 @@ sys.path.insert(0, '..')
 from services.book_search import BookSearchManager
 from services.borrower_manager import BorrowerManager
 from services.fine import FinesManager
-
+from services.loan_manager import LoanManager
 
 class FinesDialog(QDialog):
-    # Dialog for viewing and managing fines for a specific borrower.
-    
     def __init__(self, card_id, borrower_name, parent=None):
         super().__init__(parent)
         self.card_id = card_id
@@ -75,16 +73,11 @@ class FinesDialog(QDialog):
         
         self.pay_button = QPushButton("Pay All Fines")
         self.pay_button.clicked.connect(self.pay_fines)
-        self.pay_button.setStyleSheet("background-color: #4CAF50; color: white; padding: 8px;")
-        
-        refresh_button = QPushButton("Refresh")
-        refresh_button.clicked.connect(self.load_fines)
         
         close_button = QPushButton("Close")
         close_button.clicked.connect(self.accept)
         
         button_layout.addWidget(self.pay_button)
-        button_layout.addWidget(refresh_button)
         button_layout.addStretch()
         button_layout.addWidget(close_button)
         
@@ -161,7 +154,6 @@ class FinesDialog(QDialog):
         else:
             QMessageBox.critical(self, "Payment Failed", message)
 
-
 class AllFinesDialog(QDialog):
     # Dialog for viewing all unpaid fines in the system
     
@@ -202,14 +194,10 @@ class AllFinesDialog(QDialog):
         view_button = QPushButton("View Selected Borrower's Fines")
         view_button.clicked.connect(self.view_selected_borrower_fines)
         
-        refresh_button = QPushButton("Refresh")
-        refresh_button.clicked.connect(self.load_all_fines)
-        
         close_button = QPushButton("Close")
         close_button.clicked.connect(self.accept)
         
         button_layout.addWidget(view_button)
-        button_layout.addWidget(refresh_button)
         button_layout.addStretch()
         button_layout.addWidget(close_button)
         
@@ -266,7 +254,6 @@ class AllFinesDialog(QDialog):
         
         # Refresh the list after closing the detail view
         self.load_all_fines()
-
 
 class CreateUserDialog(QDialog):
     def __init__(self, parent=None):
@@ -376,10 +363,10 @@ class CreateUserDialog(QDialog):
         else:
             QMessageBox.critical(self, "Error", f"Failed to create user:\n{message}")
 
-
 class UserSelectionDialog(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, isbn=None, parent=None):
         super().__init__(parent)
+        self.isbn = isbn
         self.init_ui()
 
     def init_ui(self):
@@ -393,6 +380,7 @@ class UserSelectionDialog(QDialog):
         search_label = QLabel("Search:")
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Enter name or card ID...")
+        self.search_input.returnPressed.connect(self.on_search)
         search_button = QPushButton("Search")
         search_button.clicked.connect(self.on_search)
         search_layout.addWidget(search_label)
@@ -403,15 +391,13 @@ class UserSelectionDialog(QDialog):
         # Results table
         self.results_table = QTableWidget()
         self.results_table.setColumnCount(4)
-        self.results_table.setHorizontalHeaderLabels(["Name", "Card ID", "Email", "Has Fines"])
+        self.results_table.setHorizontalHeaderLabels(["Name", "Card ID", "Email", "Has Fine(s)"])
         self.results_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.results_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         layout.addWidget(self.results_table)
 
         # Button section
         button_layout = QHBoxLayout()
-        create_button = QPushButton("Create New User")
-        create_button.clicked.connect(self.on_create_user)
         
         view_fines_button = QPushButton("View Fines")
         view_fines_button.clicked.connect(self.on_view_fines)
@@ -421,7 +407,6 @@ class UserSelectionDialog(QDialog):
         cancel_button = QPushButton("Cancel")
         cancel_button.clicked.connect(self.reject)
         
-        button_layout.addWidget(create_button)
         button_layout.addWidget(view_fines_button)
         button_layout.addStretch()
         button_layout.addWidget(select_button)
@@ -453,15 +438,7 @@ class UserSelectionDialog(QDialog):
 
         self.results_table.resizeColumnsToContents()
 
-
-    def on_create_user(self):
-        dialog = CreateUserDialog(self)
-        if dialog.exec():
-            # Refresh the search after creating a new user
-            self.on_search()
-
     def on_view_fines(self):
-        # View fines for the selected borrower.
         selected_row = self.results_table.currentRow()
         if selected_row < 0:
             QMessageBox.warning(self, "No Selection", "Please select a borrower first")
@@ -472,15 +449,28 @@ class UserSelectionDialog(QDialog):
         
         dialog = FinesDialog(card_id, borrower_name, self)
         dialog.exec()
-        
-        # Refresh search to update fines status
         self.on_search()
 
     def on_select(self):
         selected_row = self.results_table.currentRow()
-        if selected_row >= 0:
-            # TODO: Implement checkout with selected user
+        if selected_row < 0:
+            QMessageBox.warning(self, "No Selection", "Please select a borrower first")
+            return
+        
+        if not self.isbn:
+            QMessageBox.warning(self, "Error", "No book selected for checkout")
+            return
+        
+        card_id = self.results_table.item(selected_row, 1).text()
+        borrower_name = self.results_table.item(selected_row, 0).text()
+        
+        result = LoanManager.checkout_book(self.isbn, card_id)
+        
+        if "SUCCESS" in result:
+            QMessageBox.information(self, "Checkout Successful", f"{result}\n\nBorrower: {borrower_name}")
             self.accept()
+        else:
+            QMessageBox.warning(self, "Checkout Failed", result)
 
 class LibraryApp(QMainWindow):
     def __init__(self):
@@ -565,6 +555,7 @@ class LibraryApp(QMainWindow):
         search_label = QLabel("Search:")
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Enter book title, author, or ISBN...")
+        self.search_input.returnPressed.connect(self.on_search)
         search_button = QPushButton("Search")
         search_button.clicked.connect(self.on_search)
         search_layout.addWidget(search_label)
@@ -654,7 +645,7 @@ class LibraryApp(QMainWindow):
 
     def show_available_book_details(self):
         status_label = QLabel("<b>Status: Available</b>")
-        status_label.setStyleSheet("color: green;")
+        status_label.setStyleSheet("color: green; font-size: 12px;")
         self.detail_layout.addWidget(status_label)
 
         checkout_button = QPushButton("Checkout Book")
@@ -663,18 +654,28 @@ class LibraryApp(QMainWindow):
 
     def show_checked_out_book_details(self):
         status_label = QLabel("<b>Status: Checked Out</b>")
-        status_label.setStyleSheet("color: red;")
+        status_label.setStyleSheet("color: red; font-size: 12px;")
         self.detail_layout.addWidget(status_label)
 
-        # Dummy checkout information
-        checkout_info = QLabel(
-            "<b>Checkout Date:</b> 2024-11-15<br>"
-            "<b>Due Date:</b> 2024-12-15<br>"
-            "<b>Borrower:</b> John Doe<br>"
-            "<b>Card ID:</b> 12345"
-        )
-        checkout_info.setWordWrap(True)
-        self.detail_layout.addWidget(checkout_info)
+        selected_row = self.results_table.currentRow()
+        if selected_row >= 0:
+            isbn = self.results_table.item(selected_row, 1).text()
+            loan_info = LoanManager.get_loan_by_isbn(isbn)
+            
+            if loan_info:
+                checkout_info = QLabel(
+                    f"<b>Loan ID:</b> {loan_info['Loan_id']}<br>"
+                    f"<b>Checkout Date:</b> {loan_info['Date_out']}<br>"
+                    f"<b>Due Date:</b> {loan_info['Date_due']}<br>"
+                    f"<b>Borrower:</b> {loan_info['Bname']}<br>"
+                    f"<b>Card ID:</b> {loan_info['Card_id']}"
+                )
+                checkout_info.setWordWrap(True)
+                self.detail_layout.addWidget(checkout_info)
+                
+                checkin_button = QPushButton("Check In Book")
+                checkin_button.clicked.connect(lambda: self.on_checkin_book(loan_info['Loan_id']))
+                self.detail_layout.addWidget(checkin_button)
 
     def clear_detail_panel(self):
         while self.detail_layout.count():
@@ -682,15 +683,36 @@ class LibraryApp(QMainWindow):
             if widget:
                 widget.deleteLater()
 
+    def on_checkin_book(self, loan_id):
+        reply = QMessageBox.question(
+            self, "Confirm Check In",
+            f"Check in this book?\n\nLoan ID: {loan_id}",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.No:
+            return
+        
+        result = LoanManager.checkin_loans([loan_id])
+        
+        if "SUCCESS" in result:
+            QMessageBox.information(self, "Check In Successful", result)
+            self.on_search()
+            self.on_book_selected()
+        else:
+            QMessageBox.warning(self, "Check In Failed", result)
+
     def open_user_selection_dialog(self):
-        dialog = UserSelectionDialog(self)
-        dialog.exec()
-
-    def show_books_page(self):
-        self.stacked_widget.setCurrentIndex(0)
-
-    def show_users_page(self):
-        self.stacked_widget.setCurrentIndex(1)
+        selected_row = self.results_table.currentRow()
+        if selected_row < 0:
+            QMessageBox.warning(self, "No Selection", "Please select a book first")
+            return
+        
+        isbn = self.results_table.item(selected_row, 1).text()
+        dialog = UserSelectionDialog(isbn=isbn, parent=self)
+        if dialog.exec():
+            self.on_search()
+            self.on_book_selected()
 
     def on_search(self):
         query = self.search_input.text()
@@ -699,10 +721,7 @@ class LibraryApp(QMainWindow):
             return
 
         results = BookSearchManager.search(query)
-
-        result_count = len(results)
-        self.results_table.setRowCount(result_count)
-
+        self.results_table.setRowCount(len(results))
 
         for row, book in enumerate(results):
             self.results_table.setItem(row, 0, QTableWidgetItem(book['Title']))
@@ -716,28 +735,100 @@ class LibraryApp(QMainWindow):
         page = QWidget()
         layout = QVBoxLayout()
 
+        # Header
+        header_layout = QHBoxLayout()
         label = QLabel("User Management")
         label.setStyleSheet("font-size: 16px; font-weight: bold;")
-        layout.addWidget(label)
+        header_layout.addWidget(label)
+        header_layout.addStretch()
+        
+        create_user_btn = QPushButton("Create New User")
+        create_user_btn.clicked.connect(self.on_create_user_from_page)
+        header_layout.addWidget(create_user_btn)
+        layout.addLayout(header_layout)
 
-        # Placeholder for user management components
-        placeholder = QLabel("User management components will go here")
-        layout.addWidget(placeholder)
-        layout.addStretch()
+        # Search section
+        search_layout = QHBoxLayout()
+        search_label = QLabel("Search:")
+        self.user_search_input = QLineEdit()
+        self.user_search_input.setPlaceholderText("Enter name or card ID...")
+        self.user_search_input.returnPressed.connect(self.on_user_search)
+        search_button = QPushButton("Search")
+        search_button.clicked.connect(self.on_user_search)
+        search_layout.addWidget(search_label)
+        search_layout.addWidget(self.user_search_input)
+        search_layout.addWidget(search_button)
+        layout.addLayout(search_layout)
+
+        # Results table
+        self.user_results_table = QTableWidget()
+        self.user_results_table.setColumnCount(5)
+        self.user_results_table.setHorizontalHeaderLabels(["Name", "Card ID", "Email", "Phone", "Has Fines"])
+        self.user_results_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.user_results_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        layout.addWidget(self.user_results_table)
+
+        # Action buttons
+        button_layout = QHBoxLayout()
+        view_fines_btn = QPushButton("View Fines")
+        view_fines_btn.clicked.connect(self.on_view_user_fines)
+        button_layout.addWidget(view_fines_btn)
+        button_layout.addStretch()
+        layout.addLayout(button_layout)
 
         page.setLayout(layout)
         return page
 
+    def on_user_search(self):
+        query = self.user_search_input.text()
+        if not query.strip():
+            self.user_results_table.setRowCount(0)
+            return
+
+        results = BorrowerManager.search_borrowers(query)
+        self.user_results_table.setRowCount(len(results))
+
+        for row, borrower in enumerate(results):
+            self.user_results_table.setItem(row, 0, QTableWidgetItem(borrower['Bname']))
+            self.user_results_table.setItem(row, 1, QTableWidgetItem(borrower['Card_id']))
+            self.user_results_table.setItem(row, 2, QTableWidgetItem(borrower['Email'] or ''))
+            self.user_results_table.setItem(row, 3, QTableWidgetItem(borrower['PhoneNumber'] or ''))
+            
+            has_fines = FinesManager.has_unpaid_fines(borrower['Card_id'])
+            fines_item = QTableWidgetItem("Yes" if has_fines else "No")
+            if has_fines:
+                fines_item.setForeground(Qt.GlobalColor.red)
+            else:
+                fines_item.setForeground(Qt.GlobalColor.green)
+            self.user_results_table.setItem(row, 4, fines_item)
+
+        self.user_results_table.resizeColumnsToContents()
+
+    def on_create_user_from_page(self):
+        dialog = CreateUserDialog(self)
+        if dialog.exec():
+            self.on_user_search()
+
+    def on_view_user_fines(self):
+        selected_row = self.user_results_table.currentRow()
+        if selected_row < 0:
+            QMessageBox.warning(self, "No Selection", "Please select a user first")
+            return
+        
+        card_id = self.user_results_table.item(selected_row, 1).text()
+        borrower_name = self.user_results_table.item(selected_row, 0).text()
+        
+        dialog = FinesDialog(card_id, borrower_name, self)
+        dialog.exec()
+        self.on_user_search()
+
     def open_all_fines_dialog(self):
-        # Open the dialog showing all unpaid fines.
         dialog = AllFinesDialog(self)
         dialog.exec()
 
     def update_fines(self):
-        # Run the fines update process.
         reply = QMessageBox.question(
-            self,
-            "Update Fines",
+            self, "Update Fines",
             "This will calculate and update all fines in the system.\n\nContinue?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
@@ -745,16 +836,13 @@ class LibraryApp(QMainWindow):
         if reply == QMessageBox.StandardButton.No:
             return
         
-        # Show processing message
         QMessageBox.information(self, "Processing", "Updating fines... Click OK to continue.")
         
-        # Run update
         success, message, stats = FinesManager.update_fines()
         
         if success:
             QMessageBox.information(
-                self,
-                "Update Complete",
+                self, "Update Complete",
                 f"{message}\n\n"
                 f"Total loans processed: {stats['total_processed']}\n"
                 f"New fines: {stats['new_fines']}\n"
