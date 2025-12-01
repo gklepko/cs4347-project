@@ -52,3 +52,33 @@ class BookSearchManager:
             close_connection(conn)
             
         return results
+
+if __name__ == "__main__":
+    # No args -> show usage
+    if len(sys.argv) == 1:
+        print("Usage:")
+        print("  python -m app.services.book_search <search_query>")
+        print("\nExample:")
+        print("  python -m app.services.book_search william")
+        sys.exit(0)
+    
+    query = " ".join(sys.argv[1:])
+    results = BookSearchManager.search(query)
+    
+    if not results:
+        print(f"No books found matching: {query!r}")
+    else:
+        # Print header
+        print(f"\n{'ISBN':<15} {'Title':<40} {'Author(s)':<30} {'Availability':<12}")
+        print("-" * 97)
+        
+        # Print results
+        for row in results:
+            isbn = row['Isbn'] or "N/A"
+            title = row['Title'][:39] if row['Title'] else "N/A"
+            authors = row['Authors'] or "Unknown"
+            status = row['Status']
+            
+            print(f"{isbn:<15} {title:<40} {authors:<30} {status:<12}")
+        
+        print(f"\nTotal: {len(results)} book(s) found")
