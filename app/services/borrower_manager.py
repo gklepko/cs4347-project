@@ -63,21 +63,7 @@ class BorrowerManager:
     
     @staticmethod
     def create_borrower(name, ssn, address, fname, lname, email=None, phone=None):
-        """
-        Create a new borrower in the system.
-        
-        Args:
-            name: Full name (taken from fname + lname)
-            ssn: Social Security Number in format XXX-XX-XXXX (required)
-            address: Address (required)
-            fname: First name (required)
-            lname: Last name (required)
-            email: Email address (optional)
-            phone: Phone number (optional)
-        
-        Returns:
-            tuple: (success: bool, message: str, card_id: str or None)
-        """
+        #Create a new borrower in the system.
 
         # Validate required fields
         is_valid, error_msg = BorrowerManager.validate_inputs(name, ssn, address)
@@ -171,3 +157,72 @@ class BorrowerManager:
             return []
         finally:
             close_connection(conn)
+
+if __name__ == "__main__":
+    if len(sys.argv) == 1:
+        print("Usage:")
+        print("  python -m app.services.borrower_manager create <name> <ssn> <address> [fname] [lname] [email] [phone]")
+        print("  python -m app.services.borrower_manager search <term>")
+        print("\nExample:")
+        print("  python -m app.services.borrower_manager create \"John Doe\" \"123-45-6789\" \"123 Main St\"")
+        print("  python -m app.services.borrower_manager create \"John Doe\" \"123-45-6789\" \"123 Main St\" \"John\" \"Doe\" \"john@example.com\" \"555-1234\"")
+        print("  python -m app.services.borrower_manager search \"John\"")
+        sys.exit(0)
+    
+    cmd = sys.argv[1].lower()
+    
+    if cmd == "create":
+        if len(sys.argv) < 5:
+            print("Usage: python -m app.services.borrower_manager create <name> <ssn> <address> [fname] [lname] [email] [phone]")
+            sys.exit(1)
+        
+        name = sys.argv[2]
+        ssn = sys.argv[3]
+        address = sys.argv[4]
+        fname = sys.argv[5] if len(sys.argv) > 5 else None
+        lname = sys.argv[6] if len(sys.argv) > 6 else None
+        email = sys.argv[7] if len(sys.argv) > 7 else None
+        phone = sys.argv[8] if len(sys.argv) > 8 else None
+
+        nameSplit = name.split(' ')
+        fname = nameSplit[0]
+        lname = nameSplit[1]
+        
+        success, message, card_id = BorrowerManager.create_borrower(name, ssn, address, fname, lname, email, phone)
+        print(message)
+        if success:
+            print(f"Card ID: {card_id}")
+    
+    elif cmd == "search":
+        if len(sys.argv) < 3:
+            print("Please provide a search term.")
+            sys.exit(1)
+        
+        term = " ".join(sys.argv[2:])
+        results = BorrowerManager.search_borrowers(term)
+        
+        if not results:
+            print(f"No borrowers found matching: {term!r}")
+        else:
+            # Print header
+            print(f"\n{'Card ID':<10} {'Name':<25} {'SSN':<12} {'Email':<25} {'Phone':<12} {'Address':<30}")
+            print("-" * 114)
+            
+            # Print results
+            for row in results:
+                card_id = row['Card_id'] or "N/A"
+                name = row['Bname'][:24] if row['Bname'] else "N/A"
+                ssn = row['Ssn'] or "N/A"
+                email = row['Email'][:24] if row['Email'] else "N/A"
+                phone = row['PhoneNumber'][:11] if row['PhoneNumber'] else "N/A"
+                address = row['Address'][:29] if row['Address'] else "N/A"
+                
+                print(f"{card_id:<10} {name:<25} {ssn:<12} {email:<25} {phone:<12} {address:<30}")
+            
+            print(f"\nTotal: {len(results)} borrower(s) found")
+    
+    else:
+        print("Unknown command:", cmd)
+        print("Usage:")
+        print("  python -m app.services.borrower_manager create <name> <ssn> <address> [fname] [lname] [email] [phone]")
+        print("  python -m app.services.borrower_manager search <term>")
