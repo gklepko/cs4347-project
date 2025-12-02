@@ -1,6 +1,8 @@
 # Library Management System
 **Course:** CS4347.008 Database Systems
+
 **Group:** Phosphorus
+
 **Project:** Library Management System (Milestone 2 & 3)
 
 This application is a Library Management System designed for librarians to manage books, borrowers, loans, and fines. It features a backend logic layer connecting to a MySQL database (for Milestone #2) and a PyQt6 graphical user interface (for Milestone #3).
