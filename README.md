@@ -1,5 +1,7 @@
 # Library Management System
+
 **Course:** CS4347.008 Database Systems
+
 **Project:** Library Management System Milestone #3
 
 This document provides instructions for building, configuring, and running the Library Management System GUI. The application is built using **Python** (PyQt6) and interacts with a **MySQL** backend.
