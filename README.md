@@ -1,28 +1,26 @@
 # Library Management System
 **Course:** CS4347.008 Database Systems
+**Project:** Library Management System Milestone #3
 
-**Group:** Phosphorus
+This document provides instructions for building, configuring, and running the Library Management System GUI. The application is built using **Python** (PyQt6) and interacts with a **MySQL** backend.
 
-**Project:** Library Management System (Milestone 2 & 3)
-
-This application is a Library Management System designed for librarians to manage books, borrowers, loans, and fines. It features a backend logic layer connecting to a MySQL database (for Milestone #2) and a PyQt6 graphical user interface (for Milestone #3).
-
-## 1. System Requirements
+## 1. System Environment
 
 *   **Programming Language:** Python 3.10 or higher.
 *   **Database:** MySQL Server 8.0 or higher.
-*   **Operating System:** Windows/macOS/Linux.
+*   **Operating System:** Windows, macOS, or Linux.
+*   **Interpreter:** Standard CPython interpreter.
 
-## 2. Dependencies & Third-Party Modules
+## 2. Dependencies
 
 The application relies on the following third-party Python packages:
 
-*   `mysql-connector-python` (v8.2.0): MySQL database driver.
-*   `python-dotenv` (v1.0.0): Environment variable management.
-*   `PyQt6` (v6.6.1): GUI Framework.
+*   `mysql-connector-python` (v8.2.0): Database connectivity.
+*   `python-dotenv` (v1.0.0): Environment configuration.
+*   `PyQt6` (v6.6.1): GUI framework.
 
 ### Installation
-From the project root directory, install the dependencies using pip:
+Open your terminal in the **project root directory** and run:
 
 ```bash
 pip install -r requirements.txt
@@ -30,15 +28,12 @@ pip install -r requirements.txt
 
 ## 3. Database Configuration
 
-Before running the application, you must set up the MySQL database.
-
-### Step 1: Initialize the Schema
-1.  Open your MySQL client
-2.  Create a database named `LIBMS` (or use the provided `Libms_schema.sql` file if available in your artifacts).
-3.  Ensure the tables `BOOK`, `AUTHOR`, `BOOK_AUTHOR`, `BORROWER`, `LOAN`, and `FINE` exist according to the project schema.
+### Step 1: Initialize Schema
+1.  Open your MySQL interface (Workbench, CLI, etc.).
+2.  Run the provided `Libms_schema.sql` script to create the `LIBMS` database and tables.
 
 ### Step 2: Environment Variables
-Create a file named `.env` in the **root** directory of the project. Add your MySQL credentials to this file:
+Create a file named `.env` in the **project root** directory. Add your MySQL credentials:
 
 ```ini
 MYSQL_HOST=localhost
@@ -48,98 +43,74 @@ MYSQL_DB=LIBMS
 ```
 
 ### Step 3: Import Data (Optional)
-If you wish to populate the database with the provided CSV data, use the scripts in the `normalization` folder.
-
+To populate the database with the provided CSV data:
 1.  Navigate to the project root.
-2.  Run the import script:
+2.  Run the normalization import script:
     ```bash
     python normalization/scripts/import-to-mysql.py
     ```
-    *(Follow the interactive prompts instruction to select CSV files and target tables)*
 
-## 4. How to Run the Application
+## 4. Running the Application (GUI)
 
-The project is structured to run as a package. **All commands must be run from the project root directory.**
+To launch the Graphical User Interface:
 
-### Milestone 2: Backend Logic (Command Line Interface)
-You can test specific service modules directly via the command line to verify management logic.
-
-*(If python command does not work, try python3)*
-
-#### 1. Book Search
-Search for books by Title, ISBN, or Author.
-```bash
-# Syntax: python -m app.services.book_search "<query>"
-python -m app.services.book_search "William"
-```
-
-#### 2. Borrower Management
-Create new borrowers or search for existing ones.
-```bash
-# Create a new borrower
-# Syntax: create <Name> <SSN> <Address> [Fname] [Lname] [Email] [Phone]
-python -m app.services.borrower_manager create "John Doe" "123-45-6789" "123 Main St"
-
-# Search for a borrower
-python -m app.services.borrower_manager search "John"
-```
-
-#### 3. Loan Management
-Checkout and check-in books.
-```bash
-# Checkout a book
-# Syntax: checkout <ISBN> <CARD_ID>
-python -m app.services.loan_manager checkout 0440234743 ID000001
-
-# Use Search function to find LOAN_ID
-# Syntax: python -m app.services.loan_manager search <CARD_ID>/<ISBN>/<Name>
-python -m app.services.loan_manager search ID000001
-
-# Check-in a book
-# Syntax: checkin <LOAN_ID>
-python -m app.services.loan_manager checkin 1
-```
-
-#### 4. Fines Management
-Update daily fines and view unpaid reports.
-```bash
-# Update/Calculate fines (Simulates daily batch process)
-python -m app.services.fine update
-
-# View report of all unpaid fines
-python -m app.services.fine view-unpaid
-```
-
-
-### Milestone 3: Graphical User Interface (GUI)
-This is the main entry point for the application.
+1.  Ensure you are in the **project root directory** in your terminal.
+2.  Run the following command:
 
 ```bash
 python libms.py
 ```
 
-## 5. Project Directory Structure
+*Note: On macOS/Linux, if `python` fails, try `python3 libms.py`.*
 
-```text
-project_root/
-├── .env                  <-- Database credentials
-├── libms.py              <-- GUI Entry point
-├── requirements.txt      <-- Python dependencies
-├── app/                  <-- Application base Folder
-│   ├── db/
-│   │   └── database.py   <-- DB Connection logic
-│   ├── services/
-│   │   ├── book_search.py
-│   │   ├── borrower_manager.py
-│   │   ├── fine.py
-│   │   └── loan_manager.py
-│   └── ui/
-│       └── gui.py        <-- PyQt6 Interface
-└── normalization/        <-- Data cleaning, SQL schema and import scripts
+## 5. Application Features
+
+*   **Books Tab:** Search for books by ISBN, Title, or Author.
+    *   **Checkout:** Select an available book to check it out.
+    *   **Check In:** Select a checked-out book to return it.
+*   **Users Tab:** Search for borrowers.
+    *   **Create User:** Add new borrowers (Card IDs are auto-generated).
+    *   **View Fines:** See detailed fine history for a specific user.
+*   **Fines Menu (Top Bar):**
+    *   **Update Fines:** Triggers the daily batch process to calculate new fines.
+    *   **View All Unpaid:** Displays a master list of all borrowers owing money.
+
+## 6. Testing the Fines Functionality
+
+Fines are calculated based on time passing. Since we cannot wait 15 days during a demo, you must **manipulate the database** to simulate an overdue book.
+
+**Step 1: Checkout a Book**
+Use the GUI to search for a book and check it out to a user.
+
+**Step 2: Find the Loan ID**
+In the GUI "Books" tab, search for that book again. Click on it. The details panel on the right will display the **Loan ID**.
+
+**Step 3: Travel Back in Time (SQL)**
+Open your MySQL client and run this SQL command to force the book to be overdue (change `<LOAN_ID>` to the number you found in Step 2):
+
+```sql
+USE LIBMS;
+-- Set the due date to 5 days ago or how ever much you want
+UPDATE LOAN 
+SET Date_due = DATE_SUB(CURDATE(), INTERVAL 5 DAY) 
+WHERE Loan_id = <LOAN_ID>;
 ```
 
-## 6. Troubleshooting
+**Step 4: Update & Verify Fines (GUI)**
+1.  Return to the GUI.
+2.  In the top menu bar, click **Fines** -> **Update Fines**.
+3.  A popup will confirm how many fines were created/updated.
+4.  Go to **Fines** -> **View All Unpaid Fines** to see the debt registered against the borrower.
 
-*   **'python' command not found:** If running `python` yields an error or command not found, try using `python3` instead (this is common on macOS and Linux systems).
-*   **ModuleNotFoundError:** Ensure you are running commands from the project **root** directory and using `python -m app.services...` for CLI tools so that imports resolve correctly.
-*   **Database Connection Failed:** Double-check the `.env` file exists and contains the correct credentials for your local MySQL server.
+## 7. Troubleshooting
+
+*   **`zsh: command not found: python`**:
+    On macOS, Python 3 is often mapped to `python3`. Try running:
+    ```bash
+    python3 libms.py
+    ```
+*   **`ModuleNotFoundError: No module named 'app'`**:
+    You are likely running the script from inside the `app/` folder. You **must** run the command from the main **project root** folder so Python understands the directory structure.
+*   **Database Connection Failed**:
+    Ensure your `.env` file is in the root directory and contains the correct password for your local MySQL server.
+
